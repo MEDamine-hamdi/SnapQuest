@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   statIcon: { fontSize: 20, marginBottom: 4 },
   statValue: { color: '#e8eaf6', fontWeight: '800', fontSize: 18 },
   statLabel: { color: '#9198c0', fontSize: 11 },
-  badgesSection: { padding: 16 },,
+  badgesSection: { padding: 16 },
   logoutButton: { marginHorizontal: 16, marginBottom: 32, backgroundColor: '#d32f2f', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   logoutText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   sectionTitle: { color: '#9198c0', fontWeight: '700', fontSize: 13, letterSpacing: 1, marginBottom: 12 },
