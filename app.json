@@ -1,26 +1,27 @@
 {
   "expo": {
-    "name": "snapquest-mobile",
+    "name": "SnapQuest",
     "slug": "snapquest-mobile",
+    "scheme": "snapquest",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0a0b0f"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.snapquest.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#0a0b0f",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
+      "package": "com.snapquest.app",
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -28,7 +29,9 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      ["expo-camera", { "cameraPermission": "SnapQuest needs camera to validate challenges" }],
+      ["expo-image-picker", { "photosPermission": "SnapQuest needs photos for challenge validation" }]
     ]
   }
 }
