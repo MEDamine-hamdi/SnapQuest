@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+from pydantic import BaseModel
 from services.vision_service import verify_challenge_photo
 from services.gamification import award_xp_and_badges
 from database import supabase
@@ -7,11 +8,54 @@ import uuid, base64
 
 router = APIRouter()
 
+
+class AcceptChallengeRequest(BaseModel):
+    title: str
+    category: str
+    difficulty: str
+    xp_reward: int
+    location_hint: str
+    proof_required: str
+    steps: list[str]
+    time_estimate: str
+    tip: str
+
+
+@router.post("/accept")
+async def accept_challenge(req: AcceptChallengeRequest, user=Depends(get_current_user)):
+    # 1. Save challenge to challenges table
+    challenge_result = supabase.table("challenges").insert({
+        "title": req.title,
+        "category": req.category,
+        "difficulty": req.difficulty,
+        "xp_reward": req.xp_reward,
+        "location_hint": req.location_hint,
+        "proof_required": req.proof_required,
+        "steps": req.steps,
+        "time_estimate": req.time_estimate,
+        "tip": req.tip,
+    }).execute()
+
+    if not challenge_result.data:
+        raise HTTPException(status_code=500, detail="Failed to save challenge")
+
+    challenge_id = challenge_result.data[0]["id"]
+
+    # 2. Create user_challenge row
+    supabase.table("user_challenges").insert({
+        "user_id": user["id"],
+        "challenge_id": challenge_id,
+        "status": "accepted",
+    }).execute()
+
+    return {"challenge_id": challenge_id}
+
+
 @router.post("/verify")
 async def verify_challenge(
     photo: UploadFile = File(...),
     challenge_id: str = Form(...),
-    user = Depends(get_current_user)
+    user=Depends(get_current_user)
 ):
     # 1. Récupérer le défi depuis la DB
     challenge_data = supabase.table("challenges") \
@@ -48,9 +92,9 @@ async def verify_challenge(
 
     return verification
 
+
 @router.get("")
-async def get_challenges(user = Depends(get_current_user)):
-    # Retourne les défis de l'utilisateur (acceptés, complétés, disponibles)
+async def get_challenges(user=Depends(get_current_user)):
     user_challenges = supabase.table("user_challenges") \
         .select("*, challenges(*)") \
         .eq("user_id", user["id"]) \

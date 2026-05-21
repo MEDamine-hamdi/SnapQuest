@@ -1,6 +1,5 @@
 from database import supabase
-from datetime import date, timedelta
-import json
+from datetime import date, timedelta, datetime, timezone
 
 LEVEL_THRESHOLDS = [0, 500, 1200, 2500, 5000]
 
@@ -12,17 +11,13 @@ def calculate_level(total_xp: int) -> int:
     return min(level, 5)
 
 def calculate_streak_bonus(user: dict) -> int:
-    """
-    Si l'utilisateur a joué hier, le streak continue.
-    Sinon, reset à 0.
-    """
     last_date = user.get("last_activity_date")
     today = date.today()
     if not last_date:
         return 0
     last = date.fromisoformat(str(last_date))
     if last == today - timedelta(days=1):
-        return user["streak"] * 10  # 10 XP par jour de streak
+        return user["streak"] * 10
     return 0
 
 async def award_xp_and_badges(
@@ -31,12 +26,6 @@ async def award_xp_and_badges(
     xp_reward: int,
     category: str
 ) -> dict:
-    """
-    1. Récupère l'utilisateur actuel
-    2. Calcule le nouveau XP + niveau + streak
-    3. Met à jour la DB
-    4. Vérifie et attribue les nouveaux badges
-    """
     # 1. Récupérer utilisateur
     user_data = supabase.table("users").select("*").eq("id", user_id).execute()
     user = user_data.data[0]
@@ -63,20 +52,22 @@ async def award_xp_and_badges(
     level_up = new_level > user["level"]
 
     # 4. Mettre à jour l'utilisateur
-    supabase.table("users").update({
+    user_update = supabase.table("users").update({
         "total_xp": new_total_xp,
         "level": new_level,
         "streak": new_streak,
         "challenges_completed": user["challenges_completed"] + 1,
         "last_activity_date": today.isoformat()
     }).eq("id", user_id).execute()
+    print("=== USER UPDATE ===", user_update.data)
 
     # 5. Enregistrer la completion
-    supabase.table("user_challenges").update({
+    challenge_update = supabase.table("user_challenges").update({
         "status": "completed",
         "xp_earned": total_xp_earned,
-        "completed_at": "NOW()"
+        "completed_at": datetime.now(timezone.utc).isoformat()
     }).eq("user_id", user_id).eq("challenge_id", challenge_id).execute()
+    print("=== USER_CHALLENGES UPDATE ===", challenge_update.data)
 
     # 6. Vérifier les badges
     new_badges = await check_and_award_badges(
@@ -98,7 +89,6 @@ async def award_xp_and_badges(
     }
 
 async def check_and_award_badges(user_id, challenges_completed, total_xp, streak, category) -> list:
-    """Vérifie tous les badges et attribue ceux non encore obtenus."""
     all_badges = supabase.table("badges").select("*").execute().data
     earned_ids = {b["badge_id"] for b in
                   supabase.table("user_badges").select("badge_id").eq("user_id", user_id).execute().data}
@@ -107,19 +97,22 @@ async def check_and_award_badges(user_id, challenges_completed, total_xp, streak
     for badge in all_badges:
         if badge["id"] in earned_ids:
             continue
-        cond = badge["condition_value"]
-        ctype = badge["condition_type"]
+        cond = badge.get("condition_value", {})
+        ctype = badge.get("condition_type", "")
         earned = False
 
-        if ctype == "challenges_count" and challenges_completed >= cond["min"]:
+        if ctype == "challenges_count" and challenges_completed >= cond.get("min", 0):
             earned = True
-        elif ctype == "xp" and total_xp >= cond["min"]:
+        elif ctype == "xp" and total_xp >= cond.get("min", 0):
             earned = True
-        elif ctype == "streak" and streak >= cond["min"]:
+        elif ctype == "streak" and streak >= cond.get("min", 0):
             earned = True
 
         if earned:
-            supabase.table("user_badges").insert({"user_id": user_id, "badge_id": badge["id"]}).execute()
+            supabase.table("user_badges").insert({
+                "user_id": user_id,
+                "badge_id": badge["id"]
+            }).execute()
             new_badges.append(badge)
 
     return new_badges

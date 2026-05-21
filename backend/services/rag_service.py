@@ -10,7 +10,7 @@ vectorstore = Chroma(
     persist_directory="../rag/chroma_db",
     embedding_function=embeddings
 )
-llm = ChatGroq(model="llama-3.1-70b-versatile", temperature=0.7, groq_api_key=os.getenv("GROQ_API_KEY"))
+llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.7, groq_api_key=os.getenv("GROQ_API_KEY"))
 
 SYSTEM_PROMPT = """Tu es SnapBot, un guide IA enthousiaste spécialisé dans les activités en Tunisie.
 Ton rôle : analyser le profil de l'utilisateur et lui recommander UN défi parfaitement adapté.
@@ -80,7 +80,7 @@ DÉFI {i} :
     user_context = f"""
 MESSAGE UTILISATEUR: {user_message}
 PROFIL: {json.dumps(user_profile, ensure_ascii=False)}
-HISTORIQUE (dernier échange): {json.dumps(history[-2:], ensure_ascii=False) if history else 'Aucun'}
+HISTORIQUE (dernier échange): {json.dumps([{"role": m.role, "content": m.content} for m in history[-2:]], ensure_ascii=False) if history else 'Aucun'}
 
 DÉFIS DISPONIBLES:
 {challenges_context}

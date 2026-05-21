@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, ActivityIndicator
+  StyleSheet, KeyboardAvoidingView, ActivityIndicator, Alert
 } from 'react-native';
 import { router } from 'expo-router';
 import { api } from '../../services/api';
@@ -14,14 +14,16 @@ interface Message {
 }
 
 interface Challenge {
-  id: string;
   title: string;
-  description: string;
+  description?: string;
   xp_reward: number;
   difficulty: string;
   category: string;
   steps: string[];
   proof_required: string;
+  location_hint: string;
+  time_estimate: string;
+  tip: string;
 }
 
 export default function ChatbotScreen() {
@@ -34,6 +36,7 @@ export default function ChatbotScreen() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accepting, setAccepting] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   const sendMessage = async () => {
@@ -46,7 +49,7 @@ export default function ChatbotScreen() {
     try {
       const res = await api.post('/chat', {
         message: input,
-        history: messages.slice(-6)  // Dernier 6 messages pour contexte
+        history: messages.slice(-6)
       });
       const { reply, challenge } = res.data;
       setMessages(prev => [...prev, {
@@ -66,17 +69,34 @@ export default function ChatbotScreen() {
     }
   };
 
+  const acceptChallenge = async (challenge: Challenge, messageId: string) => {
+    setAccepting(messageId);
+    try {
+      const res = await api.post('/challenges/accept', challenge);
+      router.push(`/challenge/${res.data.challenge_id}`);
+    } catch {
+      Alert.alert('Erreur', 'Impossible d\'accepter le défi, réessaie.');
+    } finally {
+      setAccepting(null);
+    }
+  };
+
   const renderMessage = ({ item }: { item: Message }) => (
     <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.botBubble]}>
       <Text style={styles.bubbleText}>{item.content}</Text>
       {item.challenge && (
         <TouchableOpacity
           style={styles.challengeCard}
-          onPress={() => router.push(`/challenge/${item.challenge!.id}`)}
+          onPress={() => acceptChallenge(item.challenge!, item.id)}
+          disabled={accepting === item.id}
         >
           <Text style={styles.challengeTitle}>🏆 {item.challenge.title}</Text>
           <Text style={styles.challengeXP}>+{item.challenge.xp_reward} XP · {item.challenge.difficulty}</Text>
-          <Text style={styles.challengeAccept}>Accepter ce défi →</Text>
+          {accepting === item.id ? (
+            <ActivityIndicator size="small" color="#4fc3f7" style={{ marginTop: 4 }} />
+          ) : (
+            <Text style={styles.challengeAccept}>Accepter ce défi →</Text>
+          )}
         </TouchableOpacity>
       )}
     </View>

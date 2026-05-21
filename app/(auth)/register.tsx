@@ -33,13 +33,19 @@ export default function RegisterScreen() {
     try {
       await api.post('/auth/register', {
         ...form,
-        interests: selectedInterests.map(i => i.split(' ')[1].toLowerCase())
+        interests: selectedInterests.map(i => i.split(' ').slice(1).join(' ').toLowerCase()),
       });
       Alert.alert('Compte créé !', 'Tu peux maintenant te connecter.', [
         { text: 'OK', onPress: () => router.replace('/(auth)/login') }
       ]);
-    } catch {
-      Alert.alert('Erreur', 'Email déjà utilisé ou erreur serveur');
+    } catch (e: any) {
+      // Show the actual server error instead of a generic message
+      const msg =
+        e?.response?.data?.detail ||
+        e?.response?.data?.message ||
+        e?.message ||
+        'Erreur inconnue';
+      Alert.alert('Erreur', msg);
     } finally {
       setLoading(false);
     }

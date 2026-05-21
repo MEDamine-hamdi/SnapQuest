@@ -1,40 +1,20 @@
 import hashlib
-from supabase import create_client
-from anthropic import Anthropic
+import json
+import base64
 import os
 from dotenv import load_dotenv
+from groq import Groq
+from database import supabase
 
 load_dotenv()
 
-# Supabase
-supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY")
-)
-
-# Claude
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
-async def verify_challenge_photo(photo_bytes, challenge_description, user_id):
-    """
-    Vérifie si la photo correspond au défi
-    + anti-triche simple
-    """
-
-    # =========================
-    # 1. Vérifier doublons
-    # =========================
-    photo_hash = hashlib.md5(photo_bytes).hexdigest()
-
-    existing = (
-        supabase
-        .table("photo_hashes")
-        .select("id")
-        .eq("hash", photo_hash)
-        .execute()
-    )
-
+async def verify_challenge_photo(photo_base64: str, proof_required: str, challenge_title: str, category: str):
+    # 1. Check for duplicate photos
+    photo_hash = hashlib.md5(photo_base64.encode()).hexdigest()
+    existing = supabase.table("photo_hashes").select("id").eq("hash", photo_hash).execute()
     if existing.data:
         return {
             "validated": False,
@@ -42,59 +22,52 @@ async def verify_challenge_photo(photo_bytes, challenge_description, user_id):
             "message": "Cette photo a déjà été utilisée !"
         }
 
-    # =========================
-    # 2. Analyse IA Claude Vision
-    # =========================
-    response = client.messages.create(
-        model="claude-3-5-sonnet-20241022",
-        max_tokens=300,
+    # 2. Analyse Groq Vision
+    response = client.chat.completions.create(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
         messages=[
             {
                 "role": "user",
                 "content": [
                     {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": photo_bytes.decode("latin1")
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{photo_base64}"
                         }
                     },
                     {
                         "type": "text",
-                        "text": f"""
-Tu es un système de validation de défis photo.
+                        "text": f"""Tu es un système de validation de défis photo.
 
-Défi :
-{challenge_description}
+Défi : {challenge_title} (catégorie: {category})
+Preuve requise : {proof_required}
 
 Règles :
-- Vérifie si la photo correspond au défi.
-- Détecte si c'est un screenshot, une image Google ou une image affichée sur écran.
+- Vérifie si la photo correspond à la preuve requise.
+- Détecte si c'est un screenshot, une image Google ou affichée sur écran.
 - Donne un score sur 100.
-- Répond uniquement au format JSON.
+- Réponds UNIQUEMENT en JSON valide, rien d'autre, pas de markdown.
 
 Format :
 {{
   "validated": true,
   "score": 85,
   "message": "Bonne photo !"
-}}
-"""
+}}"""
                     }
                 ]
             }
-        ]
+        ],
+        max_tokens=300
     )
 
-    result_text = response.content[0].text
+    result_text = response.choices[0].message.content.strip()
 
-    # =========================
-    # 3. Sauvegarder hash
-    # =========================
-    supabase.table("photo_hashes").insert({
-        "hash": photo_hash,
-        "user_id": user_id
-    }).execute()
+    # 3. Save hash
+    supabase.table("photo_hashes").insert({"hash": photo_hash}).execute()
 
-    return result_text
+    try:
+        clean = result_text.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean)
+    except json.JSONDecodeError:
+        return {"validated": False, "score": 0, "message": "Erreur d'analyse, réessaie."}

@@ -6,8 +6,10 @@ router = APIRouter()
 
 @router.get("/me")
 async def get_me(user=Depends(get_current_user)):
-    badges = supabase.table("badges").select("*").eq("user_id", user["id"]).execute()
+    user_badges = supabase.table("user_badges") \
+        .select("*, badges(*)") \
+        .eq("user_id", user["id"]).execute()
     return {
         "user": user,
-        "badges": badges.data
+        "badges": [ub["badges"] for ub in user_badges.data if ub.get("badges")]
     }

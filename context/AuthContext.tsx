@@ -1,83 +1,76 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { api } from '../services/api';
 
 type User = {
   id: string;
+  username: string;
   email: string;
-  token?: string;
+  age_range: string;
+  interests: string[];
+  total_xp: number;
+  level: number;
+  streak: number;
+  challenges_completed: number;
 };
 
 type AuthContextType = {
   user: User | null;
+  token: string | null;
+  loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
-  logout: () => Promise<void>;
-  isLoading: boolean;
+  signOut: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-  const bootstrapAsync = async () => {
-    try {
-      await SecureStore.deleteItemAsync('userToken');
-      setUser(null);
-    } catch (e) {
-      console.error('Failed to restore token', e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  bootstrapAsync();
-}, []);
+  // Restore session on app start
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await SecureStore.getItemAsync('userToken');
+        if (stored) {
+          const { token: t, user: u } = JSON.parse(stored);
+          setToken(t);
+          setUser(u);
+        }
+      } catch {
+        // Corrupted storage — clear it silently
+        await SecureStore.deleteItemAsync('userToken');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const signIn = async (email: string, password: string) => {
-  const response = await fetch('http://192.168.1.13:8000/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.detail || 'Erreur de connexion');
-  }
-  const data = await response.json();
-  const userData = { id: data.user.id, email: data.user.email, token: data.token };
-  setUser(userData);
-  await SecureStore.setItemAsync('userToken', JSON.stringify(userData));
-};
+    const res = await api.post('/auth/login', { email, password });
+    const { token: t, user: u } = res.data;
+    await SecureStore.setItemAsync('userToken', JSON.stringify({ token: t, user: u }));
+    setToken(t);
+    setUser(u);
+  };
 
-  const signUp = async (email: string, password: string, username: string) => {
-  const response = await fetch('http://192.168.1.13:8000/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, name: username }),
-  });
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.detail || 'Erreur inscription');
-  }
-};
-  const logout = async () => {
-    setUser(null);
+  const signOut = async () => {
     await SecureStore.deleteItemAsync('userToken');
+    setToken(null);
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, signIn, signUp, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used inside AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
+  return ctx;
 }

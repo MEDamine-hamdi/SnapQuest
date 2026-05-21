@@ -57,19 +57,26 @@ Profil idéal: âge {inp.get('age_range','')}, intérêts {','.join(inp.get('int
 
 def ingest():
     print("📥 Chargement des défis depuis JSONL...")
-    docs = load_challenges_from_jsonl("data/snapquest_challenge_sft.jsonl")
+    docs = load_challenges_from_jsonl("data/snapquest_challenge.jsonl")
     print(f"✅ {len(docs)} défis chargés")
 
     print("🧮 Création des embeddings et ingestion dans ChromaDB...")
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
-    vectorstore = Chroma.from_documents(
-        documents=docs,
-        embedding=embeddings,
-        persist_directory="./chroma_db"
+    
+    vectorstore = Chroma(
+        persist_directory="./chroma_db",
+        embedding_function=embeddings
     )
-    print(f"🎉 Ingestion terminée ! {vectorstore._collection.count()} vecteurs stockés.")
 
+    batch_size = 100
+    for i in range(0, len(docs), batch_size):
+        batch = docs[i:i + batch_size]
+        vectorstore.add_documents(batch)
+        print(f"  ✓ {min(i + batch_size, len(docs))}/{len(docs)} ingérés...")
+
+    print(f"🎉 Ingestion terminée ! {vectorstore._collection.count()} vecteurs stockés.")
+    
 if __name__ == "__main__":
     ingest()
