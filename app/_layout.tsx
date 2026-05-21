@@ -1,9 +1,15 @@
+import { useEffect } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../context/AuthContext';
 
 export default function RootLayout() {
+  useEffect(() => {
+    SecureStore.deleteItemAsync('userToken');
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

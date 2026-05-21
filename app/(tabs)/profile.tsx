@@ -20,10 +20,14 @@ export default function ProfileScreen() {
   useEffect(() => { fetchProfile(); }, []);
 
   const fetchProfile = async () => {
+  try {
     const res = await api.get('/users/me');
     setUser(res.data.user);
     setBadges(res.data.badges);
-  };
+  } catch (e) {
+    console.error('Profile fetch failed', e);
+  }
+};
 
   const handleLogout = async () => {
     await logout();
@@ -52,7 +56,6 @@ export default function ProfileScreen() {
         <Text style={styles.levelName}>{level.name} — Niveau {level.level}</Text>
       </View>
 
-      { /* Barre XP */ }
       <View style={styles.xpCard}>
         <View style={styles.xpRow}>
           <Text style={styles.xpLabel}>⚡ {user.total_xp} XP</Text>
@@ -63,7 +66,6 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      { /* Stats */ }
       <View style={styles.statsRow}>
         {[
           { label: 'Défis', value: user.challenges_completed, icon: '🏆' },
@@ -78,23 +80,21 @@ export default function ProfileScreen() {
         ))}
       </View>
 
-      { /* Badges */ }
       <View style={styles.badgesSection}>
         <Text style={styles.sectionTitle}>🎖️ Badges obtenus</Text>
         <View style={styles.badgeGrid}>
           {badges.map((b: any) => (
             <View key={b.id} style={styles.badgeItem}>
-
-      {/* Logout Button */}
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Déconnexion</Text>
-      </TouchableOpacity>
               <Text style={styles.badgeEmoji}>{b.emoji}</Text>
               <Text style={styles.badgeName}>{b.name}</Text>
             </View>
           ))}
         </View>
       </View>
+
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutText}>Déconnexion</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -124,5 +124,5 @@ const styles = StyleSheet.create({
   badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   badgeItem: { backgroundColor: '#1e2130', borderRadius: 8, padding: 12, alignItems: 'center', width: 80 },
   badgeEmoji: { fontSize: 28, marginBottom: 4 },
-  badgeName: { color: '#9198c0', fontSize: 10, textAlign: 'center' }
+  badgeName: { color: '#9198c0', fontSize: 10, textAlign: 'center' },
 });
